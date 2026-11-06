@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Level 0 — WebGL Cube</title>
+
+  <style>
+    /* PAGE STYLING:
+       Establish readable colors and a responsive layout.
+    */
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #0b1220;
+      color: #eaf2ff;
+    }
+
+    header {
+      padding: 24px clamp(18px, 5vw, 56px);
+      background: #15243c;
+      border-bottom: 1px solid #33465d;
+    }
+
+    header h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.6rem, 3vw, 2.3rem);
+    }
+
+    header p {
+      margin: 5px 0;
+      color: #cfdaec;
+    }
+
+    /* MAIN CONTENT:
+       Keep controls and canvas aligned.
+    */
+    main {
+      width: min(100%, 1100px);
+      margin: auto;
+      padding: 20px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .hint {
+      color: #bbcbe3;
+      font-size: .94rem;
+    }
+
+    /* TOGGLE SWITCH:
+       Accessible checkbox styled as a switch.
+    */
+    .quality-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .quality-control input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+
+    .track {
+      display: inline-flex;
+      width: 51px;
+      height: 29px;
+      border-radius: 20px;
+      background: #687a90;
+      padding: 3px;
+      transition: background .2s;
+    }
+
+    .thumb {
+      width: 23px;
+      height: 23px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform .2s;
+    }
+
+    .quality-control input:checked + .track {
+      background: #4fa7ef;
+    }
+
+    .quality-control input:checked + .track .thumb {
+      transform: translateX(22px);
+    }
+
+    .quality-control input:focus-visible + .track {
+      outline: 3px solid #fff;
+      outline-offset: 3px;
+    }
+
+    /* WEBGL CANVAS:
+       The 3D cube is displayed here.
+    */
+    canvas {
+      display: block;
+      width: 100%;
+      height: min(65vh, 610px);
+      min-height: 320px;
+      border: 1px solid #405470;
+      border-radius: 14px;
+      background: #0b1220;
+      touch-action: none;
+    }
+
+    /* STATUS TEXT:
+       Displays rendering mode or errors.
+    */
+    #status {
+      min-height: 1.5em;
+      color: #bed5ea;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ============================================
+       HEADER START
+       Required title, author, and project information
+       ============================================ -->
+  <header>
+
+    <h1>Level 0 — A WebGL Cube</h1>
+
+    <p>
+      <strong>Created by:</strong> Anthony
+    </p>
+
+    <!-- PROJECT INFORMATION -->
+    <p>
+      <strong>About this project:</strong>
+      Interactive cube
+    </p>
+
+  </header>
+  <!-- HEADER END -->
+
+  <!-- ============================================
+       MAIN APPLICATION
+       ============================================ -->
+  <main>
+
+    <!-- QUALITY CONTROL SWITCH corrected by AI-->
+    <div class="toolbar">
+
+      <label class="quality-control" for="qualityToggle">
+
+        <!-- Checked means high-quality mode -->
+        <input
+          type="checkbox"
+          id="qualityToggle"
+          checked
+        />
+
+        <!-- Visual appearance of switch -->
+        <span class="track" aria-hidden="true">
+          <span class="thumb"></span>
+        </span>
+
+        <!-- Text updated by JavaScript -->
+        <span id="qualityLabel">High quality</span>
+
+      </label>
+
+      <span class="hint">
+        Drag to rotate - Toggle image quality for older devices
+      </span>
+
+    </div>
+
+    <!-- WEBGL DRAWING AREA -->
+    <canvas
+      id="glCanvas"
+      aria-label="Interactive rotating 3D cube with different image quality modes">
+    </canvas>
+
+    <!-- STATUS INFORMATION -->
+    <p id="status" role="status" aria-live="polite"></p>
+
+  </main> 
+ 
+
+  <!-- ============================================
+       JAVASCRIPT / WEBGL APPLICATION
+       ============================================ -->
+  <script>
+    "use strict";
+
+    /* ============================================
+       SECTION 1: GET HTML ELEMENTS
+       ============================================ */
+
+    // Canvas receives the WebGL graphics.
+    const canvas = document.getElementById("glCanvas");
+
+    // Toggle selects rendering quality.
+    const toggle = document.getElementById("qualityToggle");
+
+    // Label indicates current quality.
+    const qualityLabel = document.getElementById("qualityLabel");
+
+    // Status element displays information.
+    const status = document.getElementById("status");
+
+
+    /* ============================================
+       SECTION 2: INITIALIZE WEBGL
+       ============================================ */
+
+    // WebGL 1 provides compatibility with many
+    // older WebGL-capable browsers.
+    const gl =
+      canvas.getContext("webgl", {
+        antialias: true,
+        alpha: false
+      }) ||
+      canvas.getContext("experimental-webgl", {
+        antialias: true,
+        alpha: false
+      });
+
+    // Display an error if WebGL is unsupported.
+    if (!gl) {
+
+      status.textContent =
+        "WebGL is unavailable in this browser. " +
+        "Try enabling hardware acceleration or " +
+        "using a WebGL-capable browser.";
+
+    } else {
+
+      /* ============================================
+         SECTION 3: VERTEX SHADER
+         ============================================ */
+
+      // The vertex shader processes each vertex.
+      // aPosition stores its position in 3D space.
+      // aUV stores the texture coordinates.
+      // aColor stores the color of the cube face.
+      // uMatrix transforms the vertex for display.
+
+      // suggested by AI
+      const vertexSource = ` 
+        attribute vec3 aPosition;
+        attribute vec2 aUV;
+        attribute vec3 aColor;
+
+        uniform mat4 uMatrix;
+
+        varying vec2 vUV;
+        varying vec3 vColor;
+
+        void main() {
+
+          gl_Position =
+            uMatrix * vec4(aPosition, 1.0);
+
+          vUV = aUV;
+          vColor = aColor;
+        }
+      `;
+
+
+      /* ============================================
+         SECTION 4: FRAGMENT SHADER
+         ============================================ */
+
+      // The fragment shader calculates pixel colors.
+      // It samples the selected image texture.
+      // The cube face color tints that texture.
+
+      const fragmentSource = `
+        precision mediump float;
+
+        uniform sampler2D uTexture;
+
+        varying vec2 vUV;
+        varying vec3 vColor;
+
+        void main() {
+
+          vec3 imageColor =
+            texture2D(uTexture, vUV).rgb;
+
+          gl_FragColor =
+            vec4(imageColor * vColor, 1.0);
+        }
+      `;
+
+
+      /* ============================================
+         SECTION 5: COMPILE SHADERS
+         ============================================ */
+
+      // Compiles GLSL source code for the GPU.
+      function compileShader(type, source) {
+
+        const shader = gl.createShader(type);
+
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+
+        // Verify shader compilation.
+        if (!gl.getShaderParameter(
+          shader,
+          gl.COMPILE_STATUS
+        )) {
+
+          const error = gl.getShaderInfoLog(shader);
+
+          gl.deleteShader(shader);
+
+          throw new Error(
+            "Shader compilation failed: " + error
+          );
+        }
+
+        return shader;
+      }
+
+
+      /* ============================================
+         SECTION 6: CREATE SHADER PROGRAM
+         ============================================ */
+
+      // Links vertex and fragment shaders together.
+      function makeProgram() {
+
+        const program = gl.createProgram();
+
+        const vertex = compileShader(
+          gl.VERTEX_SHADER,
+          vertexSource
+        );
+
+        const fragment = compileShader(
+          gl.FRAGMENT_SHADER,
+          fragmentSource
+        );
+
+        gl.attachShader(program, vertex);
+        gl.attachShader(program, fragment);
+
+        gl.linkProgram(program);
+
+        // Shader objects are no longer needed
+        // after a successful program link.
+        gl.deleteShader(vertex);
+        gl.deleteShader(fragment);
+
+        // Check for linking errors.
+        if (!gl.getProgramParameter(
+          program,
+          gl.LINK_STATUS
+        )) {
+
+          throw new Error(
+            "WebGL program linking failed: " +
+            gl.getProgramInfoLog(program)
+          );
+        }
+
+        return program;
+      }
+
+
+      try {
+
+        const program = makeProgram();
+
+        gl.useProgram(program);
+
+
+        /* ============================================
+           SECTION 7: DEFINE THE 2 x 2 x 2 CUBE
+           ============================================ */
+
+        // The cube is centered at the origin.
+        //
+        // X coordinates range from -1 to +1.
+        // Y coordinates range from -1 to +1.
+        // Z coordinates range from -1 to +1.
+        //
+        // Width  = 1 - (-1) = 2
+        // Height = 1 - (-1) = 2
+        // Depth  = 1 - (-1) = 2
+        //
+        // Each face has four corners.
+        // Different colors help distinguish faces.
+
+        const faces = [
+
+          // FRONT FACE
+          {
+            corners: [
+              [-1,-1, 1],
+              [ 1,-1, 1],
+              [ 1, 1, 1],
+              [-1, 1, 1]
+            ],
+            color: [1.00,0.91,0.99]
+          },
+
+          // BACK FACE
+          {
+            corners: [
+              [ 1,-1,-1],
+              [-1,-1,-1],
+              [-1, 1,-1],
+              [ 1, 1,-1]
+            ],
+            color: [0.78,0.92,1.00]
+          },
+
+          // TOP FACE
+          {
+            corners: [
+              [-1, 1, 1],
+              [ 1, 1, 1],
+              [ 1, 1,-1],
+              [-1, 1,-1]
+            ],
+            color: [0.92,1.00,0.83]
+          },
+
+          // BOTTOM FACE
+          {
+            corners: [
+              [-1,-1,-1],
+              [ 1,-1,-1],
+              [ 1,-1, 1],
+              [-1,-1, 1]
+            ],
+            color: [1.00,0.82,0.72]
+          },
+
+          // RIGHT FACE
+          {
+            corners: [
+              [ 1,-1, 1],
+              [ 1,-1,-1],
+              [ 1, 1,-1],
+              [ 1, 1, 1]
+            ],
+            color: [0.77,1.00,0.94]
+          },
+
+          // LEFT FACE
+          {
+            corners: [
+              [-1,-1,-1],
+              [-1,-1, 1],
+              [-1, 1, 1],
+              [-1, 1,-1]
+            ],
+            color: [0.85,0.84,1.00]
+          }
+        ];
+
+
+        /* ============================================
+           SECTION 8: CREATE VERTEX DATA
+           ============================================ */
+
+        // Vertex array stores:
+        // 3 position values
+        // 2 texture coordinates
+        // 3 color values
+        //
+        // Total = 8 values per vertex.
+
+        const vertices = [];
+        const indices = [];
+
+        // Texture mapping coordinates.
+        const uvs = [
+          [0,0],
+          [1,0],
+          [1,1],
+          [0,1]
+        ];
+
+        // Build geometry for all six faces.
+        faces.forEach((face, faceIndex) => {
+
+          face.corners.forEach((corner, i) => {
+
+            vertices.push(
+              ...corner,
+              ...uvs[i],
+              ...face.color
+            );
+
+          });
+
+          // Each square face needs two triangles.
+          const start = faceIndex * 4;
+
+          indices.push(
+            start,
+            start + 1,
+            start + 2,
+            start,
+            start + 2,
+            start + 3
+          );
+
+        });
+
+
+        /* ============================================
+           SECTION 9: UPLOAD GEOMETRY TO GPU
+           ============================================ */
+
+        // Create vertex buffer.
+        const vertexBuffer = gl.createBuffer();
+
+        gl.bindBuffer(
+          gl.ARRAY_BUFFER,
+          vertexBuffer
+        );
+
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array(vertices),
+          gl.STATIC_DRAW
+        );
+
+        // Create index buffer.
+        const indexBuffer = gl.createBuffer();
+
+        gl.bindBuffer(
+          gl.ELEMENT_ARRAY_BUFFER,
+          indexBuffer
+        );
+
+        gl.bufferData(
+          gl.ELEMENT_ARRAY_BUFFER,
+          new Uint16Array(indices),
+          gl.STATIC_DRAW
+        );
+
+
+        /* ============================================
+           SECTION 10: CONFIGURE ATTRIBUTES
+           ============================================ */
+
+        // Each vertex has 8 floating-point values.
+        const stride =
+          8 * Float32Array.BYTES_PER_ELEMENT;
+
+        // Connect JavaScript vertex data
+        // to shader attributes.
+        function attribute(name, count, offset) {
+
+          const location =
+            gl.getAttribLocation(program, name);
+
+          gl.enableVertexAttribArray(location);
+
+          gl.vertexAttribPointer(
+            location,
+            count,
+            gl.FLOAT,
+            false,
+            stride,
+            offset * 4
+          );
+        }
+
+        attribute("aPosition", 3, 0);
+        attribute("aUV", 2, 3);
+        attribute("aColor", 3, 5);
+
+        // Get shader uniform locations.
+        const matrixLocation =
+          gl.getUniformLocation(program, "uMatrix");
+
+        const samplerLocation =
+          gl.getUniformLocation(program, "uTexture");
+
+        // Use texture unit zero.
+        gl.uniform1i(samplerLocation, 0);
+
+
+        /* ============================================
+           SECTION 11: GENERATE IMAGE TEXTURES
+           ============================================ */
+
+        // This function creates the image displayed
+        // on the cube faces.
+        //
+        // High quality image: 512 x 512 pixels.
+        // Low quality image:   32 x 32 pixels to play it safe
+        //
+        // Both images are generated locally,
+        // so no external image files are required.
+
+        function makeImage(size) {
+
+          const image =
+            document.createElement("canvas");
+
+          image.width = size;
+          image.height = size;
+
+          const ctx = image.getContext("2d");
+
+          // Create background gradient.
+          const gradient =
+            ctx.createLinearGradient(
+              0, 0, size, size
+            );
+
+          gradient.addColorStop(0, "#1b375f");
+          gradient.addColorStop(1, "#3ecad2");
+
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, size, size);
+
+          // Draw grid lines.
+          ctx.strokeStyle =
+            "rgba(255,255,255,.35)";
+
+          ctx.lineWidth =
+            Math.max(1, size / 155);
+
+          for (let i = 0; i <= 8; i++) {
+
+            const p = (i / 8) * size;
+
+            // Vertical line
+            ctx.beginPath();
+            ctx.moveTo(p, 0);
+            ctx.lineTo(p, size);
+            ctx.stroke();
+
+            // Horizontal line
+            ctx.beginPath();
+            ctx.moveTo(0, p);
+            ctx.lineTo(size, p);
+            ctx.stroke();
+          }
+
+          // Draw yellow diamond.
+          ctx.fillStyle = "#fce58a";
+
+          ctx.beginPath();
+
+          ctx.moveTo(size * .5, size * .12);
+          ctx.lineTo(size * .88, size * .5);
+          ctx.lineTo(size * .5, size * .88);
+          ctx.lineTo(size * .12, size * .5);
+
+          ctx.closePath();
+          ctx.fill();
+
+          // Outline the diamond.
+          ctx.strokeStyle = "#14304b";
+
+          ctx.lineWidth =
+            Math.max(1, size / 42);
+
+          ctx.stroke();
+
+          // Draw number 2 in the center.
+          ctx.fillStyle = "#163753";
+
+          ctx.font =
+            `bold ${Math.floor(size * .22)}px sans-serif`; //suggested by AI
+
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+
+          ctx.fillText(
+            "2",
+            size * .5,
+            size * .5
+          );
+
+          return image;
+        }
+
+
+        /* ============================================
+           SECTION 12: CREATE WEBGL TEXTURES
+           ============================================ */
+
+        // Upload the generated image to GPU memory.
+        function createTexture(image, highQuality) {
+
+          const texture = gl.createTexture();
+
+          gl.bindTexture(
+            gl.TEXTURE_2D,
+            texture
+          );
+
+          // Flip image vertically for WebGL.
+          gl.pixelStorei(
+            gl.UNPACK_FLIP_Y_WEBGL,
+            true
+          );
+
+          // Upload image pixels.
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            image
+          );
+
+          // Avoid repeating texture edges.
+          gl.texParameteri(
+            gl.TEXTURE_2D,
+            gl.TEXTURE_WRAP_S,
+            gl.CLAMP_TO_EDGE
+          );
+
+          gl.texParameteri(
+            gl.TEXTURE_2D,
+            gl.TEXTURE_WRAP_T,
+            gl.CLAMP_TO_EDGE
+          );
+
+          if (highQuality) {
+
+            // HIGH QUALITY:
+            // Use smooth linear filtering.
+            gl.generateMipmap(gl.TEXTURE_2D);
+
+            gl.texParameteri(
+              gl.TEXTURE_2D,
+              gl.TEXTURE_MIN_FILTER,
+              gl.LINEAR_MIPMAP_LINEAR
+            );
+
+            gl.texParameteri(
+              gl.TEXTURE_2D,
+              gl.TEXTURE_MAG_FILTER,
+              gl.LINEAR
+            );
+
+          } else {
+
+            // LOW QUALITY:
+            // Use nearest-neighbor filtering.
+            // Individual pixels appear blockier.
+            gl.texParameteri(
+              gl.TEXTURE_2D,
+              gl.TEXTURE_MIN_FILTER,
+              gl.NEAREST
+            );
+
+            gl.texParameteri(
+              gl.TEXTURE_2D,
+              gl.TEXTURE_MAG_FILTER,
+              gl.NEAREST
+            );
+          }
+
+          return texture;
+        }
+
+        // Create both image-quality versions.
+        const textures = {
+
+          high: createTexture(
+            makeImage(512),
+            true
+          ),
+
+          low: createTexture(
+            makeImage(32),
+            false
+          )
+
+        };
+
+
+        /* ============================================
+           SECTION 13: MATRIX MULTIPLICATION
+           ============================================ */
+
+        // WebGL uses 4 x 4 transformation matrices.
+        // These matrices control position, rotation,
+        // and perspective projection.
+
+        function multiply(a, b) {
+
+          const out = new Float32Array(16);
+
+          for (let c = 0; c < 4; c++) {
+
+            for (let r = 0; r < 4; r++) {
+
+              for (let k = 0; k < 4; k++) {
+
+                out[c * 4 + r] +=
+                  a[k * 4 + r] *
+                  b[c * 4 + k];
+
+              }
+            }
+          }
+
+          return out;
+        }
+
+
+        /* ============================================
+           SECTION 14: PERSPECTIVE PROJECTION
+           ============================================ */
+
+        // Perspective makes distant objects
+        // appear smaller than nearby objects.
+
+        function perspective(fov, aspect, near, far) {
+
+          const f = 1 / Math.tan(fov / 2);
+
+          return new Float32Array([
+            f / aspect, 0, 0, 0,
+            0, f, 0, 0,
+            0, 0, (far + near) / (near - far), -1,
+            0, 0, 2 * far * near / (near - far), 0 // corrected from Proj1
+          ]);
+        }
+
+
+        /* ============================================
+           SECTION 15: ROTATION MATRICES
+           ============================================ */
+
+        // Rotate around the X-axis.
+        function rotateX(t) {
+
+          const c = Math.cos(t);
+          const s = Math.sin(t);
+
+          return new Float32Array([
+            1, 0, 0, 0,
+            0, c, s, 0,
+            0, -s, c, 0,
+            0, 0, 0, 1
+          ]);
+        }
+
+        // Rotate around the Y-axis.
+        function rotateY(t) {
+
+          const c = Math.cos(t);
+          const s = Math.sin(t);
+
+          return new Float32Array([
+            c, 0, -s, 0,
+            0, 1, 0, 0,
+            s, 0, c, 0,
+            0, 0, 0, 1
+          ]);
+        }
+
+
+        /* ============================================
+           SECTION 16: CAMERA POSITION
+           ============================================ */
+
+        // Move the cube 6 units away
+        // from the camera along the Z-axis.
+
+        const translation = new Float32Array([
+          1, 0, 0, 0,
+          0, 1, 0, 0,
+          0, 0, 1, 0,
+          0, 0, -6, 1
+        ]);
+
+
+        /* ============================================
+           SECTION 17: MOUSE / TOUCH INTERACTION
+           ============================================ */
+
+        // Initial cube rotation. Attempt at above and beyond
+        let angleX = -.35;
+        let angleY = .65;
+
+        // Track pointer dragging.
+        let dragging = false;
+
+        let lastX = 0;
+        let lastY = 0;
+
+        // Start rotating when pointer is pressed.
+        canvas.addEventListener(
+          "pointerdown",
+          e => {
+
+            dragging = true;
+
+            lastX = e.clientX;
+            lastY = e.clientY;
+
+            canvas.setPointerCapture(e.pointerId);
+          }
+        );
+
+        // Update rotation while dragging.
+        canvas.addEventListener(
+          "pointermove",
+          e => {
+
+            if (!dragging) return;
+
+            angleY +=
+              (e.clientX - lastX) * .009;
+
+            angleX +=
+              (e.clientY - lastY) * .009;
+
+            lastX = e.clientX;
+            lastY = e.clientY;
+          }
+        );
+
+        // Stop rotation when pointer is released.
+        canvas.addEventListener(
+          "pointerup",
+          () => {
+            dragging = false;
+          }
+        );
+
+        // Stop rotation if input is canceled.
+        canvas.addEventListener(
+          "pointercancel",
+          () => {
+            dragging = false;
+          }
+        );
+
+
+        /* ============================================
+           SECTION 18: HIGH / LOW QUALITY TOGGLE
+           ============================================ */
+
+        // Checked = high-quality image.
+        // Unchecked = low-quality image.
+        //
+        // High:
+        // 512 x 512 texture
+        // Smooth texture filtering
+        // Full-resolution rendering
+        //
+        // Low:
+        // 32 x 32 texture
+        // Nearest-neighbor filtering
+        // Reduced-resolution rendering
+
+        function setQuality() {
+
+          const high = toggle.checked;
+
+          qualityLabel.textContent = high
+            ? "High quality"
+            : "Low quality (older browsers)";
+
+          status.textContent = high
+            ? "High quality: 512 x 512 texture, " +
+              "smooth filtering, full-resolution rendering."
+            : "Low quality: 32 x 32 texture, " +
+              "nearest-neighbor filtering, " +
+              "reduced-resolution rendering.";
+        }
+
+        // Update whenever switch changes.
+        toggle.addEventListener(
+          "change",
+          setQuality
+        );
+
+        // Initialize correct text.
+        setQuality();
+
+
+        /* ============================================
+           SECTION 19: WEBGL RENDER SETTINGS
+           ============================================ */
+
+        // Depth testing prevents hidden faces
+        // from appearing in front of visible faces.
+        gl.enable(gl.DEPTH_TEST);
+
+        // Face culling skips faces turned away.
+        gl.enable(gl.CULL_FACE);
+
+        // Counterclockwise winding defines front faces.
+        gl.frontFace(gl.CCW);
+
+
+        /* ============================================
+           SECTION 20: MAIN RENDER FUNCTION
+           ============================================ */
+
+        // This function repeatedly draws the cube.
+        // It also updates rendering quality,
+        // projection, and rotation.
+
+        function render() {
+
+          // Read quality selection.
+          const high = toggle.checked;
+
+          // High mode uses a larger drawing buffer.
+          // Low mode uses fewer pixels.
+          const pixelRatio = high
+            ? Math.min(
+                window.devicePixelRatio || 1,
+                2
+              )
+            : .65; //AI suggestion
+
+          // Calculate drawing dimensions.
+          const width = Math.max(
+            1,
+            Math.floor(
+              canvas.clientWidth * pixelRatio
+            )
+          );
+
+          const height = Math.max(
+            1,
+            Math.floor(
+              canvas.clientHeight * pixelRatio
+            )
+          );
+
+          // Resize only when dimensions change.
+          if (
+            canvas.width !== width ||
+            canvas.height !== height
+          ) {
+
+            canvas.width = width;
+            canvas.height = height;
+          }
+
+          // Set drawing region.
+          gl.viewport(
+            0,
+            0,
+            width,
+            height
+          );
+
+          // Set background color.
+          gl.clearColor(
+            .045,
+            .075,
+            .13,
+            1
+          );
+
+          // Clear previous frame.
+          gl.clear(
+            gl.COLOR_BUFFER_BIT |
+            gl.DEPTH_BUFFER_BIT
+          );
+
+          // Perspective matrix.
+          const projection = perspective(
+            Math.PI / 3,
+            width / height,
+            .1,
+            100
+          );
+
+          // Apply rotations and translation.
+          const model = multiply(
+            translation,
+            multiply(
+              rotateY(angleY),
+              rotateX(angleX)
+            )
+          );
+
+          // Combine perspective and model matrices.
+          const finalMatrix = multiply(
+            projection,
+            model
+          );
+
+          // Send transformation to GPU.
+          gl.uniformMatrix4fv(
+            matrixLocation,
+            false,
+            finalMatrix
+          );
+
+          // Activate texture unit zero.
+          gl.activeTexture(gl.TEXTURE0);
+
+          // Select high or low texture.
+          gl.bindTexture(
+            gl.TEXTURE_2D,
+            high
+              ? textures.high
+              : textures.low
+          );
+
+          // Draw the cube.
+          //
+          // 6 faces
+          // 2 triangles per face
+          // 3 vertices per triangle
+          //
+          // Total = 36 indices.
+          gl.drawElements(
+            gl.TRIANGLES,
+            indices.length,
+            gl.UNSIGNED_SHORT,
+            0
+          );
+
+          // Render next frame.
+          requestAnimationFrame(render);
+        }
+
+        // Start the render loop.
+        requestAnimationFrame(render);
+
+      } catch (error) {
+
+        /* ============================================
+           SECTION 21: ERROR HANDLING
+           ============================================ */
+
+        // Report shader or graphics problems.
+        console.error(error);
+
+        status.textContent =
+          "Unable to render the cube: " +
+          error.message;
+      }
+    }
+  </script>
+
+</body>
+</html>
